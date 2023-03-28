@@ -1,4 +1,4 @@
-package main
+package batcher
 
 // job represents each job that is sent to a batch processor
 type job[T any] struct {
