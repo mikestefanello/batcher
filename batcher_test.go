@@ -190,6 +190,10 @@ func TestBatcher_ItemTrigger(t *testing.T) {
 	}
 }
 
+func TestBatcher_Shutdown(t *testing.T) {
+	// TODO
+}
+
 func BenchmarkBatcher_Add(b *testing.B) {
 	batch, err := NewBatcher[int](Config[int]{
 		GroupCountThreshold: b.N + 1,

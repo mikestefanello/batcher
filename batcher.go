@@ -35,7 +35,7 @@ type Batcher[T any] struct {
 	processing bool
 
 	// shutdown indicates if the Batcher has been shutdown
-	shutdown bool
+	shutdown chan struct{}
 }
 
 // Add adds an item to a given group and blocks until it has been accepted but not processed
@@ -112,6 +112,9 @@ func (b *Batcher[T]) jobWorker() {
 func (b *Batcher[T]) tickerListener() {
 	for {
 		select {
+		case <-b.shutdown:
+			return
+
 		case <-b.ticker.C:
 			if !b.processing {
 				b.addMutex.Lock()
@@ -122,14 +125,15 @@ func (b *Batcher[T]) tickerListener() {
 	}
 }
 
-// Shutdown shuts down the Batcher and prevents further processing
+// Shutdown processes any remaining queued items then shuts down the Batcher and prevents further processing
 func (b *Batcher[T]) Shutdown() {
 	b.ticker.Stop()
 	b.processQueue()
 	b.processingMutex.Lock()
 	close(b.jobs)
 	close(b.results)
-	b.shutdown = true
+	b.shutdown <- struct{}{}
+	close(b.shutdown)
 }
 
 // NewBatcher creates a new Batcher from given configuration
@@ -139,11 +143,12 @@ func NewBatcher[T any](cfg Config[T]) (*Batcher[T], error) {
 	}
 
 	b := &Batcher[T]{
-		config:  cfg,
-		queue:   make(map[string]*job[T], cfg.GroupCountThreshold),
-		jobs:    make(chan *job[T], cfg.NumGoroutines),
-		results: make(chan struct{}, cfg.GroupCountThreshold),
-		ticker:  time.NewTicker(cfg.DelayThreshold),
+		config:   cfg,
+		queue:    make(map[string]*job[T], cfg.GroupCountThreshold),
+		jobs:     make(chan *job[T], cfg.NumGoroutines),
+		results:  make(chan struct{}, cfg.GroupCountThreshold),
+		ticker:   time.NewTicker(cfg.DelayThreshold),
+		shutdown: make(chan struct{}),
 	}
 
 	go b.tickerListener()
