@@ -2,6 +2,7 @@ package batcher
 
 import (
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -32,7 +33,7 @@ type Batcher[T any] struct {
 	processingMutex sync.Mutex
 
 	// processing indicates if the queue is currently being processed
-	processing bool
+	processing atomic.Bool
 
 	// shutdown indicates if the Batcher has been shutdown
 	shutdown chan struct{}
@@ -72,11 +73,11 @@ func (b *Batcher[T]) isQueueFull() bool {
 // processQueue processes the jobs in the queue concurrently and blocks until complete
 func (b *Batcher[T]) processQueue() {
 	b.processingMutex.Lock()
-	b.processing = true
+	b.processing.Store(true)
 
 	defer func() {
 		b.ticker.Reset(b.config.DelayThreshold)
-		b.processing = false
+		b.processing.Store(false)
 		b.itemCount = 0
 		b.processingMutex.Unlock()
 	}()
@@ -101,6 +102,7 @@ func (b *Batcher[T]) processQueue() {
 // jobWorker consumes jobs from the channel and passes them to the processor
 func (b *Batcher[T]) jobWorker() {
 	for j := range b.jobs {
+		// Pass the data to the desired processor
 		b.config.Processor(j.group, j.items)
 
 		// Tell the queue processor that we're done
@@ -116,8 +118,8 @@ func (b *Batcher[T]) tickerListener() {
 			return
 
 		case <-b.ticker.C:
-			if !b.processing {
-				b.addMutex.Lock()
+			if !b.processing.Load() {
+				b.addMutex.Lock() // TODO processing could start at this point; need better locking
 				b.processQueue()
 				b.addMutex.Unlock()
 			}

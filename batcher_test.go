@@ -128,7 +128,7 @@ func TestBatcher_GroupTrigger(t *testing.T) {
 		GroupCountThreshold: 3,
 		ItemCountThreshold:  5,
 		DelayThreshold:      10 * time.Minute,
-		NumGoroutines:       1,
+		NumGoroutines:       2,
 		Processor: func(key string, items []int) {
 			counter++
 		},
@@ -162,7 +162,7 @@ func TestBatcher_ItemTrigger(t *testing.T) {
 		GroupCountThreshold: 3,
 		ItemCountThreshold:  3,
 		DelayThreshold:      10 * time.Minute,
-		NumGoroutines:       1,
+		NumGoroutines:       2,
 		Processor: func(key string, items []int) {
 			counter++
 			if len(items) != 3 {
@@ -191,7 +191,36 @@ func TestBatcher_ItemTrigger(t *testing.T) {
 }
 
 func TestBatcher_Shutdown(t *testing.T) {
-	// TODO
+	var counter int
+
+	b, err := NewBatcher[int](Config[int]{
+		GroupCountThreshold: 3,
+		ItemCountThreshold:  3,
+		DelayThreshold:      10 * time.Millisecond,
+		NumGoroutines:       1,
+		Processor: func(key string, items []int) {
+			counter++
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	b.Add("group1", 1)
+	b.Shutdown()
+
+	// Shutting down should process the queue
+	if counter != 1 {
+		t.Error("queue did not process on shutdown")
+	}
+
+	// Add another item and wait for the delay to ensure the queue is no longer processing
+	b.Add("group2", 2)
+	time.Sleep(11 * time.Millisecond)
+
+	if counter != 1 {
+		t.Error("queue is still processing after shutdown")
+	}
 }
 
 func BenchmarkBatcher_Add(b *testing.B) {
