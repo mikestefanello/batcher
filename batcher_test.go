@@ -2,6 +2,7 @@ package batcher
 
 import (
 	"fmt"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -63,7 +64,7 @@ func TestBatcher_Add(t *testing.T) {
 		j, exists := b.queue[group]
 
 		if exists != expectedToExist {
-			t.Errorf("expected existance of group %s failed: expected %v, got %v", group, expectedToExist, exists)
+			t.Errorf("expected existence of group %s failed: expected %v, got %v", group, expectedToExist, exists)
 		}
 
 		if exists && (len(j.items) != expectedItems) {
@@ -114,15 +115,17 @@ func TestBatcher_DelayTrigger(t *testing.T) {
 	b.Add("group2", 1)
 	b.Add("group2", 2)
 
-	time.Sleep(11 * time.Millisecond)
+	time.Sleep(12 * time.Millisecond)
 
+	b.addMutex.Lock()
 	if len(b.queue) != 0 || counter != 2 {
 		t.Error("queue did not process after the delay elapsed")
 	}
+	b.addMutex.Unlock()
 }
 
 func TestBatcher_GroupTrigger(t *testing.T) {
-	var counter int
+	var counter atomic.Int32
 
 	b, err := NewBatcher[int](Config[int]{
 		GroupCountThreshold: 3,
@@ -130,7 +133,7 @@ func TestBatcher_GroupTrigger(t *testing.T) {
 		DelayThreshold:      10 * time.Minute,
 		NumGoroutines:       2,
 		Processor: func(key string, items []int) {
-			counter++
+			counter.Add(1)
 		},
 	})
 	if err != nil {
@@ -144,19 +147,19 @@ func TestBatcher_GroupTrigger(t *testing.T) {
 	b.Add("group2", 1)
 	b.Add("group2", 2)
 
-	if len(b.queue) == 0 || counter > 0 {
+	if len(b.queue) == 0 || counter.Load() > 0 {
 		t.Error("queue processed before the group threshold was met")
 	}
 
 	b.Add("group3", 2)
 
-	if len(b.queue) != 0 || counter != 3 {
+	if len(b.queue) != 0 || counter.Load() != 3 {
 		t.Error("queue did not process after the group threshold was met")
 	}
 }
 
 func TestBatcher_ItemTrigger(t *testing.T) {
-	var counter int
+	var counter atomic.Int32
 
 	b, err := NewBatcher[int](Config[int]{
 		GroupCountThreshold: 3,
@@ -164,7 +167,7 @@ func TestBatcher_ItemTrigger(t *testing.T) {
 		DelayThreshold:      10 * time.Minute,
 		NumGoroutines:       2,
 		Processor: func(key string, items []int) {
-			counter++
+			counter.Add(1)
 			if len(items) != 3 {
 				t.Errorf("expected 3 items, got %d", len(items))
 			}
@@ -179,13 +182,13 @@ func TestBatcher_ItemTrigger(t *testing.T) {
 	b.Add("group1", 1)
 	b.Add("group1", 2)
 
-	if len(b.queue) == 0 || counter > 0 {
+	if len(b.queue) == 0 || counter.Load() > 0 {
 		t.Error("queue processed before the item threshold was met")
 	}
 
 	b.Add("group1", 3)
 
-	if len(b.queue) != 0 || counter != 1 {
+	if len(b.queue) != 0 || counter.Load() != 1 {
 		t.Error("queue did not process after the item threshold was met")
 	}
 }

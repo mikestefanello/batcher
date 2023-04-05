@@ -73,13 +73,14 @@ func (b *Batcher[T]) isQueueFull() bool {
 // processQueue processes the jobs in the queue concurrently and blocks until complete
 func (b *Batcher[T]) processQueue() {
 	b.processingMutex.Lock()
+	b.ticker.Stop()
 	b.processing.Store(true)
 
 	defer func() {
-		b.ticker.Reset(b.config.DelayThreshold)
 		b.processing.Store(false)
 		b.itemCount = 0
 		b.processingMutex.Unlock()
+		b.ticker.Reset(b.config.DelayThreshold)
 	}()
 
 	count := len(b.queue)
@@ -119,7 +120,7 @@ func (b *Batcher[T]) tickerListener() {
 
 		case <-b.ticker.C:
 			if !b.processing.Load() {
-				b.addMutex.Lock() // TODO processing could start at this point; need better locking
+				b.addMutex.Lock()
 				b.processQueue()
 				b.addMutex.Unlock()
 			}
