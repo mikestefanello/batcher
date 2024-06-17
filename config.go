@@ -21,7 +21,7 @@ type Config[T any] struct {
 	NumGoroutines int
 
 	// Processor is a function callback to process the items in each group when the Batcher is processing the queue
-	Processor func(key string, items []T)
+	Processor func(group string, items []T)
 }
 
 // validate returns an error if the Config is not considered valid
