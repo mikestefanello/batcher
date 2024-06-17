@@ -8,7 +8,7 @@
 
 ## Overview
 
-_Batcher_ is a Go library that provides a type-safe, easy way to batch together arbitrary groups of items to be automatically and asynchonrously processed. An item can be of any type that you want to pass to your processor. Items are queued within groups (using a _string_ as a name). If you do not have a need to separately group items, you can specify the same group name for all items. Each group of items is separately sent to the processor callback that you specify.
+_Batcher_ is a Go library that provides a type-safe, easy way to batch together arbitrary groups of items to be automatically and asynchronously processed. An item can be of any type that you want to pass to your processor. Items are queued within groups (using a _string_ as a name). If you do not have a need to separately group items, you can specify the same, or empty, group name for all items. Each group of items is separately sent to the processor callback that you specify.
 
 The queue can be configured to automatically execute the batch operation under any of the following circumstances:
 1) A specified duration has elapsed since the last process executed
